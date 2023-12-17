@@ -1,6 +1,7 @@
 import express from "express";
 import { config } from "dotenv";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 
 
 config({
@@ -15,6 +16,10 @@ app.use(express.urlencoded({
     extended: true,
 }));
 app.use(cookieParser());
+app.use(cors({
+    origin: "http://localhost:3000",
+    credentials: true,
+}));
 
 //IMPORTING & USING ROUTES
 
