@@ -76,17 +76,30 @@ export const logout = catchAsyncError(async (req, res, next) => {
     });
 });
 
+
 export const getMyProfile = catchAsyncError(async (req, res, next) => {
+    try {
+        const user = await User.findById(req.user._id);
 
-    const user = await User.findById(req.user._id);
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: "User not found",
+            });
+        }
 
-    res
-        .status(200)
-        .json({
+        res.status(200).json({
             success: true,
-            user,
+            data: {
+                user,
+            },
         });
+    } catch (error) {
+        // Handle unexpected errors
+        next(error);
+    }
 });
+
 
 export const changePassword = catchAsyncError(async (req, res, next) => {
 
