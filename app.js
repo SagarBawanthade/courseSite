@@ -17,7 +17,7 @@ app.use(express.urlencoded({
 }));
 app.use(cookieParser());
 app.use(cors({
-    origin: "https://course-site-frontend.onrender.com",
+    origin: "https://localhost:3000",
     credentials: true,
 }));
 
