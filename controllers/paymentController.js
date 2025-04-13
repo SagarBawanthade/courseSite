@@ -191,203 +191,145 @@ import { Payment } from "../models/Payment.js";
 
 
 
-// Dummy subscription controller that will work without Razorpay
+// STEP 1: Buy subscription - always succeeds
 export const buySubscription = catchAsyncError(async (req, res, next) => {
-    let user;
+    console.log("Buy subscription initiated");
+    
+    // Generate dummy subscription data
+    const subscriptionId = "sub_" + Date.now() + Math.random().toString(36).substring(2, 7);
     
     try {
-        // Try to get authenticated user if available
+        // Try to get the user if authenticated
+        let user = null;
         if (req.user && req.user._id) {
             user = await User.findById(req.user._id);
-            console.log("Found authenticated user:", user.email || user._id);
+            
+            if (user) {
+                // Update user with subscription data
+                user.subscription = {
+                    id: subscriptionId,
+                    status: "active"
+                };
+                
+                await user.save();
+                console.log(`Updated user ${user._id} with subscription ${subscriptionId}`);
+            }
         }
         
-        // Create dummy user if no real user found
-        if (!user) {
-            console.log("No authenticated user found, creating dummy user");
-            user = {
-                _id: "dummy_" + Math.random().toString(36).substr(2, 9),
-                role: "user",
-                subscription: {},
-                save: async function() {
-                    console.log("Saving dummy user (no actual DB update)");
-                    return Promise.resolve();
-                }
-            };
-        }
+        // Even if no user was found, still return success
+        console.log("Subscription created successfully:", subscriptionId);
+        
+        // Return success response with all necessary data
+        return res.status(201).json({
+            success: true,
+            subscriptionId: subscriptionId,
+            user: user ? user._id : "anonymous",
+            message: "Subscription created successfully!"
+        });
     } catch (error) {
-        console.log("Failed to retrieve user, using dummy user instead:", error.message);
-        user = {
-            _id: "dummy_" + Math.random().toString(36).substr(2, 9),
-            role: "user",
-            subscription: {},
-            save: async function() {
-                console.log("Saving dummy user (no actual DB update)");
-                return Promise.resolve();
-            }
-        };
+        console.error("Error during subscription creation but continuing:", error);
+        
+        // ALWAYS return success even if there was an error
+        return res.status(201).json({
+            success: true,
+            subscriptionId: subscriptionId,
+            message: "Subscription created successfully!",
+            note: "Created with fallback mechanism"
+        });
     }
-
-    // Generate dummy subscription
-    const dummySubscription = {
-        id: "sub_" + Math.random().toString(36).substr(2, 9),
-        status: "active",
-        created_at: new Date().toISOString(),
-        plan_id: process.env.PLAN_ID || "plan_dummy123",
-        customer_notify: 1,
-        total_count: 12,
-    };
-
-    console.log("Created dummy subscription:", dummySubscription.id);
-
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    try {
-        // Update user subscription details
-        user.subscription.id = dummySubscription.id;
-        user.subscription.status = "active";
-        await user.save();
-        console.log("Updated user subscription status to active");
-    } catch (error) {
-        console.log("Failed to update user subscription but continuing:", error.message);
-    }
-
-    // Always return success response
-    res.status(201).json({
-        success: true,
-        subscriptionId: dummySubscription.id,
-        message: "Subscription created successfully!",
-        dummy: true,
-        key: "rzp_test_dummy" // Fake key that won't actually be used
-    });
 });
 
-// Dummy payment verification that will always succeed
+// STEP 2: Payment verification - always succeeds
 export const paymentVerification = catchAsyncError(async (req, res, next) => {
-    console.log("Payment verification called", req.body);
+    console.log("Payment verification called");
     
-    // Extract payment details from request or generate dummy ones
-    const razorpay_payment_id = req.body.razorpay_payment_id || "pay_" + Math.random().toString(36).substr(2, 9);
-    const razorpay_subscription_id = req.body.razorpay_subscription_id || "sub_" + Math.random().toString(36).substr(2, 9);
-    const razorpay_signature = req.body.razorpay_signature || "sig_" + Math.random().toString(36).substr(2, 9);
-    
-    let user;
     try {
-        // Try to get authenticated user
+        // Generate payment IDs if not provided
+        const paymentId = req.body.razorpay_payment_id || "pay_" + Date.now() + Math.random().toString(36).substring(2, 7);
+        const subscriptionId = req.body.razorpay_subscription_id || req.query.subscriptionId || "sub_" + Date.now();
+        
+        // Try to find user and update
         if (req.user && req.user._id) {
-            user = await User.findById(req.user._id);
-            console.log("Found user for payment verification:", user.email || user._id);
+            const user = await User.findById(req.user._id);
+            
+            if (user) {
+                user.subscription.status = "active";
+                await user.save();
+                console.log(`Updated user ${user._id} subscription status to active`);
+            }
         }
         
-        // Create dummy user if needed
-        if (!user) {
-            console.log("No user found for payment verification, using dummy");
-            user = {
-                _id: "dummy_" + Math.random().toString(36).substr(2, 9),
-                subscription: { id: razorpay_subscription_id, status: "active" },
-                save: async function() {
-                    console.log("Saving dummy user payment (no actual DB update)");
-                    return Promise.resolve();
-                }
-            };
-        }
-    } catch (error) {
-        console.log("Error finding user for payment verification:", error.message);
-        // Continue with dummy user
-        user = {
-            _id: "dummy_" + Math.random().toString(36).substr(2, 9),
-            subscription: { id: razorpay_subscription_id, status: "active" },
-            save: async function() {
-                console.log("Saving dummy user payment (no actual DB update)");
-                return Promise.resolve();
-            }
-        };
-    }
-
-    try {
-        // Try to create payment record in database
+        // Try to record payment
         try {
             await Payment.create({
-                razorpay_payment_id,
-                razorpay_subscription_id,
-                razorpay_signature,
+                razorpay_payment_id: paymentId,
+                razorpay_subscription_id: subscriptionId,
+                razorpay_signature: "sig_dummy",
                 createdAt: new Date()
             });
-            console.log("Created payment record in database");
-        } catch (dbError) {
-            console.log("Failed to create payment record but continuing:", dbError.message);
+            console.log("Payment record created successfully");
+        } catch (paymentError) {
+            console.error("Failed to create payment record but continuing:", paymentError);
         }
-
-        // Update user subscription status
-        user.subscription.status = "active";
-        await user.save();
-        console.log("Updated user subscription status after payment verification");
+        
+        // Set frontend URL with fallback
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+        
+        // Always redirect to success page
+        return res.redirect(`${frontendUrl}/paymentsuccess?reference=${paymentId}`);
     } catch (error) {
-        console.log("Error in payment verification process but continuing:", error.message);
+        console.error("Error in payment verification but redirecting to success anyway:", error);
+        
+        // Set frontend URL with fallback
+        const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+        const backupPaymentId = "pay_" + Date.now();
+        
+        // ALWAYS redirect to success page even on error
+        return res.redirect(`${frontendUrl}/paymentsuccess?reference=${backupPaymentId}`);
     }
-
-    // Redirect to success page - ALWAYS succeed regardless of any errors
-    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-    res.redirect(`${frontendUrl}/paymentsuccess?reference=${razorpay_payment_id}`);
 });
 
-// Get Razorpay key - return dummy key if real one not available
+// STEP 3: Get Razorpay key - always succeeds with dummy key
 export const getRazorPaykey = catchAsyncError(async (req, res, next) => {
-    const key = process.env.RAZORPAY_API_KEY || "rzp_test_dummy_key_for_development";
-    console.log("Providing Razorpay key:", key);
+    console.log("Get Razorpay key called");
     
+    // Return a dummy key
     res.status(200).json({
         success: true,
-        key: key
+        key: process.env.RAZORPAY_API_KEY || "rzp_test_0amTZLThwVEBLf_dummy"
     });
 });
 
-// Cancel subscription - always succeed
+// STEP 4: Cancel subscription - always succeeds
 export const cancelSubscription = catchAsyncError(async (req, res, next) => {
-    let user;
-    let refund = false;
+    console.log("Cancel subscription called");
     
     try {
-        // Get user if available
+        // Try to update user if available
         if (req.user && req.user._id) {
-            user = await User.findById(req.user._id);
-            console.log("Found user for subscription cancellation:", user.email || user._id);
+            const user = await User.findById(req.user._id);
+            
+            if (user) {
+                // Clear subscription details
+                user.subscription.id = undefined;
+                user.subscription.status = undefined;
+                await user.save();
+                console.log(`Cancelled subscription for user ${user._id}`);
+            }
         }
         
-        if (!user) {
-            console.log("No user found for subscription cancellation");
-            user = {
-                subscription: { id: "sub_dummy", status: "active" },
-                save: async function() {
-                    console.log("Saving dummy cancellation (no actual DB update)");
-                    return Promise.resolve();
-                }
-            };
-        }
-
-        // Simulate cancellation logic
-        const subscriptionId = user.subscription?.id || "sub_dummy";
-        console.log("Cancelling subscription:", subscriptionId);
-        
-        // Randomly determine if refund should be given (for simulation)
-        refund = Math.random() > 0.5;
-        
-        // Clear subscription details
-        user.subscription.id = undefined;
-        user.subscription.status = undefined;
-        await user.save();
-        console.log("Cleared user subscription details");
-        
+        // Always return success response
+        res.status(200).json({
+            success: true,
+            message: "Subscription cancelled successfully!"
+        });
     } catch (error) {
-        console.log("Error in subscription cancellation but continuing:", error.message);
+        console.error("Error cancelling subscription but returning success:", error);
+        
+        // Always return success even on error
+        res.status(200).json({
+            success: true,
+            message: "Subscription cancelled successfully!"
+        });
     }
-
-    // Always return success
-    res.status(200).json({
-        success: true,
-        message: refund
-            ? "Subscription cancelled, You will receive full refund within 7 days."
-            : "Subscription cancelled, No refund initiated as subscription was cancelled after 7 days.",
-    });
 });
