@@ -11,24 +11,30 @@ export const buySubscription = catchAsyncError(async (req, res, next) => {
     if (user.role === "admin")
         return next(new ErrorHandler("Admin can't buy Subscription", 400));
 
-    const plan_id = process.env.PLAN_ID || "plan_NCYN35mXmCqV4P";
-
-    const subscription = await instance.subscriptions.create({
-        plan_id,
+    // Dummy subscription data - simulating a payment gateway response
+    const dummySubscription = {
+        id: "sub_" + Math.random().toString(36).substr(2, 9),
+        status: "active",
+        created_at: new Date().toISOString(),
+        plan_id: process.env.PLAN_ID || "plan_NCYN35mXmCqV4P",
         customer_notify: 1,
         total_count: 12,
-    });
+    };
 
-    user.subscription.id = subscription.id;
-    user.subscription.status = subscription.status;
+    // Simulate a small delay like a real API call
+    await new Promise(resolve => setTimeout(resolve, 800));
+
+    // Update user with dummy subscription data
+    user.subscription.id = dummySubscription.id;
+    user.subscription.status = dummySubscription.status;
 
     await user.save();
 
     res.status(201).json({
         success: true,
-        subscriptionId: subscription.id,
-
-    })
+        subscriptionId: dummySubscription.id,
+        message: "Dummy subscription created successfully!"
+    });
 });
 
 
