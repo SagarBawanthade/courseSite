@@ -6,7 +6,7 @@ import crypto from "crypto";
 import { Payment } from "../models/Payment.js";
 
 export const buySubscription = catchAsyncError(async (req, res, next) => {
-    const user = await User.findById(req.user._id);
+    // const user = await User.findById(req.user._id);
 
     if (user.role === "admin")
         return next(new ErrorHandler("Admin can't buy Subscription", 400));
