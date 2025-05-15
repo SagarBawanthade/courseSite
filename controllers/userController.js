@@ -10,41 +10,38 @@ import getDataUri from "../utils/getDataUri.js";
 import { Stats } from "../models/Stats.js";
 
 export const register = catchAsyncError(async (req, res, next) => {
-    const { name, email, password } = req.body;
-    const file = req.file;
+  const { name, email, password } = req.body;
+  const file = req.file;
 
-    if (!name || !email || !password || !file) return next(new ErrorHandler("Please enter all Fields", 400));
-    let user = await User.findOne({ email });
-    if (user) return (new ErrorHandler("User Already Exists", 409));
+  if (!name || !email || !password || !file)
+    return next(new ErrorHandler("Please fill all fields", 400));
 
-    //upload files on cloudinary
+  let user = await User.findOne({ email });
+  if (user) return next(new ErrorHandler("User already exists", 409));
 
-    if (!file) {
-        return next(new ErrorHandler("No file uploaded", 400));
-    }
+  // Upload file to cloudinary
+  const fileUri = getDataUri(file);
+  const mycloud = await cloudinary.v2.uploader.upload(fileUri.content);
 
-    const fileUri = getDataUri(file);
+  // Create user with active subscription
+  user = await User.create({
+    name,
+    email,
+    password,
+    avatar: {
+      public_id: mycloud.public_id,
+      url: mycloud.secure_url,
+    },
+    // Set default active subscription
+    subscription: {
+      id: `sub_default_${Date.now()}`,
+      status: "active",
+    },
+  });
 
-    const currentTimestamp = Math.floor(Date.now() / 1000);
-
-
-    const mycloud = await cloudinary.v2.uploader.upload(fileUri.content, {
-        timestamp: currentTimestamp,
-    })
-
-
-    user = await User.create({
-        name,
-        email,
-        password,
-        avatar: {
-            public_id: mycloud.public_id,
-            url: mycloud.secure_url,
-        },
-    });
-    sendToken(res, user, "Registered Successfully", 201);
-
+  sendToken(res, user, "Registered Successfully", 201);
 });
+
 
 export const login = catchAsyncError(async (req, res, next) => {
     const { email, password } = req.body;
